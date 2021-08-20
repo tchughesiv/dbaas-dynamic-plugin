@@ -32,9 +32,11 @@ const InstanceListPage = () => {
   const [textInputIDValue, setTextInputIDValue] = React.useState('')
   const [showResults, setShowResults] = React.useState(false)
   const [inventories, setInventories] = React.useState()
+  const [tenants, setTenants] = React.useState()
   const [selectedDBProvider, setSelectedDBProvider] = React.useState('')
   const [dbProviderName, setDBProviderName] = React.useState()
   const [selectedInventory, setSelectedInventory] = React.useState({})
+  const [selectedTenant, setSelectedTenant] = React.useState({})
   const currentNS = window.location.pathname.split('/')[3]
 
   const dbProviderTitle = (
@@ -91,7 +93,45 @@ const InstanceListPage = () => {
     setSelectedDBProvider(dbProviderType)
   }
 
-  const parsePayload = (responseJson) => {
+  const parseTenantPayload = (responseJson) => {
+    let tenants = []
+
+    if (responseJson.resourceRules?.length > 0) {
+      let filteredRules = _.filter(responseJson.resourceRules, (rules) => {
+        let filteredTenants = _.filter(rules.resources, (resource) => {
+          return resource === 'dbaastenants'
+        })
+      })
+      filteredTenants.forEach((tenant, index) => {
+        let obj = { id: 0, name: '', instances: [], status: {} }
+        obj.id = index
+        obj.name = tenant.metadata.name
+        obj.status = tenant.status
+
+        if (tenant.status?.conditions[0]?.status !== 'False' && tenant.status?.conditions[0]?.type === 'SpecSynced') {
+          tenant.status?.instances?.map((instance) => {
+            return (instance.provider = tenant.spec?.providerRef?.name)
+          })
+          obj.instances = tenant.status?.instances
+        }
+
+        tenants.push(obj)
+      })
+      setTenants(tenants)
+
+      //Set the first tenant as the selected tenant by default
+      if (tenants.length > 0) {
+        setSelectedTenant(tenants[0])
+      }
+      setShowResults(true)
+    } else {
+      setNoInstances(true)
+      setStatusMsg('There is no Provider Account.')
+      setShowResults(true)
+    }
+  }
+
+  const parseInventoryPayload = (responseJson) => {
     let inventories = []
 
     if (responseJson.items?.length > 0) {
@@ -125,12 +165,62 @@ const InstanceListPage = () => {
       setShowResults(true)
     } else {
       setNoInstances(true)
-      setStatusMsg('There is no Provider Account.')
+      setStatusMsg('There is no Tenant.')
       setShowResults(true)
     }
   }
 
-  const fetchInstances = () => {
+  const fetchTenants = () => {
+    var requestOpts = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, */*',
+      },
+      body: JSON.stringify({
+        kind: 'SelfSubjectRulesReview',
+        apiVersion: 'authorization.k8s.io/v1',
+        spec: { namespace: '*' },
+      }),
+    }
+    let newBody = {
+      apiVersion: 'dbaas.redhat.com/v1alpha1',
+      kind: 'DBaaSConnection',
+      metadata: {
+        name: this.state.selectedInstance.name,
+        namespace: this.state.currentNS,
+      },
+      spec: {
+        inventoryRef: {
+          name: this.props.data.name,
+          namespace: this.state.currentNS,
+        },
+        instanceID: this.state.selectedInstance.instanceID,
+      },
+    }
+    fetch('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+      .then(async (response) => {
+        const isJson = response.headers.get('content-type')?.includes('application/json')
+        const data = isJson && (await response.json())
+
+        // check for error response
+        if (!response.ok) {
+          // get error message from body or default to response status
+          const error = (data && data.message) || response.status
+          return Promise.reject(error)
+        }
+
+        this.setState({ postId: data.id })
+      })
+      .catch((error) => {
+        this.setState({ errorMessage: error.toString() })
+        console.error('There was an error!', error)
+      })
+      .then((response) => response.json())
+      .then((data) => parseTenantPayload(data))
+  }
+
+  const fetchInstances = (responseJson) => {
     var requestOpts = {
       method: 'GET',
       headers: {
@@ -143,11 +233,12 @@ const InstanceListPage = () => {
       requestOpts
     )
       .then((response) => response.json())
-      .then((data) => parsePayload(data))
+      .then((data) => parseInventoryPayload(data))
   }
 
   React.useEffect(() => {
     parseSelectedDBProvider()
+    fetchTenants()
     fetchInstances()
   }, [currentNS, selectedDBProvider])
 
