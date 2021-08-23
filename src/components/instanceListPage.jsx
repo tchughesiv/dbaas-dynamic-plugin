@@ -27,6 +27,7 @@ import { crunchyProviderType, mongoProviderType, crunchyProviderName, mongoProvi
 const InstanceListPage = () => {
   const { t } = useTranslation()
   const [noInstances, setNoInstances] = React.useState(false)
+  const [noTenants, setNoTenants] = React.useState(false)
   const [statusMsg, setStatusMsg] = React.useState('')
   const [fetchInstancesFailed, setFetchInstancesFailed] = React.useState(false)
   const [textInputIDValue, setTextInputIDValue] = React.useState('')
@@ -39,11 +40,18 @@ const InstanceListPage = () => {
   const [selectedTenant, setSelectedTenant] = React.useState({})
   const currentNS = window.location.pathname.split('/')[3]
 
+  const k8s = require('@kubernetes/client-node')
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
+  const k8sApi = kc.makeApiClient(k8s.CoreV1Api)
+  const authzK8sApi = kc.makeApiClient(k8s.AuthorizationV1Api)
+
   const dbProviderTitle = (
     <div>
       Connect {dbProviderName} <Label className="ocs-preview-badge extra-left-margin">{t('Alpha')}</Label>
     </div>
   )
+
   const filteredInstances = React.useMemo(
     () => selectedInventory?.instances?.filter((instance) => instance.instanceID.includes(textInputIDValue)),
     [selectedInventory.instances, textInputIDValue]
@@ -94,39 +102,34 @@ const InstanceListPage = () => {
   }
 
   const parseTenantPayload = (responseJson) => {
-    let tenants = []
-
     if (responseJson.resourceRules?.length > 0) {
       let filteredRules = _.filter(responseJson.resourceRules, (rules) => {
-        let filteredTenants = _.filter(rules.resources, (resource) => {
-          return resource === 'dbaastenants'
+        rules.forEach((rule, index) => {
+          rule.resources.forEach((resource, index) => {
+            if (resource === 'dbaastenants') {
+              return rule
+            }
+          })
         })
       })
-      filteredTenants.forEach((tenant, index) => {
-        let obj = { id: 0, name: '', instances: [], status: {} }
-        obj.id = index
-        obj.name = tenant.metadata.name
-        obj.status = tenant.status
 
-        if (tenant.status?.conditions[0]?.status !== 'False' && tenant.status?.conditions[0]?.type === 'SpecSynced') {
-          tenant.status?.instances?.map((instance) => {
-            return (instance.provider = tenant.spec?.providerRef?.name)
-          })
-          obj.instances = tenant.status?.instances
-        }
-
-        tenants.push(obj)
+      filteredRules.forEach((rule, index) => {
+        rule.resourceNames.forEach((resourceName, index) => {
+          tenants.push(resourceName)
+        })
       })
       setTenants(tenants)
 
       //Set the first tenant as the selected tenant by default
       if (tenants.length > 0) {
+        let tenantList = '' + tenants.toString()
+        console.log('Tenants', tenantList)
         setSelectedTenant(tenants[0])
       }
       setShowResults(true)
     } else {
-      setNoInstances(true)
-      setStatusMsg('There is no Provider Account.')
+      setNoTenants(true)
+      setStatusMsg('There is no Tenant.')
       setShowResults(true)
     }
   }
@@ -165,7 +168,7 @@ const InstanceListPage = () => {
       setShowResults(true)
     } else {
       setNoInstances(true)
-      setStatusMsg('There is no Tenant.')
+      setStatusMsg('There is no Provider Account.')
       setShowResults(true)
     }
   }
@@ -183,41 +186,20 @@ const InstanceListPage = () => {
         spec: { namespace: '*' },
       }),
     }
-    let newBody = {
-      apiVersion: 'dbaas.redhat.com/v1alpha1',
-      kind: 'DBaaSConnection',
-      metadata: {
-        name: this.state.selectedInstance.name,
-        namespace: this.state.currentNS,
-      },
-      spec: {
-        inventoryRef: {
-          name: this.props.data.name,
-          namespace: this.state.currentNS,
+    authzK8sApi
+      .createSelfSubjectRulesReview(requestOpts.body)
+      //fetch('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+      //.then((response) => response.json())
+      .then(
+        (response) => {
+          console.log('Posted rules review')
+          console.log(response)
         },
-        instanceID: this.state.selectedInstance.instanceID,
-      },
-    }
-    fetch('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
-      .then(async (response) => {
-        const isJson = response.headers.get('content-type')?.includes('application/json')
-        const data = isJson && (await response.json())
-
-        // check for error response
-        if (!response.ok) {
-          // get error message from body or default to response status
-          const error = (data && data.message) || response.status
-          return Promise.reject(error)
+        //.then((data) => parseTenantPayload(data))
+        (err) => {
+          console.log('Error!: ' + err)
         }
-
-        this.setState({ postId: data.id })
-      })
-      .catch((error) => {
-        this.setState({ errorMessage: error.toString() })
-        console.error('There was an error!', error)
-      })
-      .then((response) => response.json())
-      .then((data) => parseTenantPayload(data))
+      )
   }
 
   const fetchInstances = (responseJson) => {

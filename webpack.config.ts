@@ -14,6 +14,17 @@ const config: webpack.Configuration = {
   },
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.jsx'],
+    alias: {
+      "path": "path-browserify",
+      "https": "https-browserify",
+      "http": "stream-http",
+      "crypto": "crypto-browserify",
+      "os": "os-browserify/browser",
+      "stream": "stream-browserify",
+      "zlib": "browserify-zlib",
+      "timers": "timers-browserify",
+      "vm": "vm-browserify",
+    },
   },
   module: {
     rules: [
