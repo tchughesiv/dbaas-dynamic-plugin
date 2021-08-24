@@ -75,7 +75,7 @@ class DBaasImportPage extends React.Component {
             <span className="breadcrumb-link" onClick={this.goBack}>
               Database-as-a-Service
             </span>
-            <span className="breadcrumb-chevron"> > </span>
+            <span className="breadcrumb-chevron"> &gt; </span>
             Create Provider Account
           </div>
           <div className="section-title">Create Provider Account</div>
