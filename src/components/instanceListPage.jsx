@@ -37,6 +37,12 @@ const InstanceListPage = () => {
   const [selectedInventory, setSelectedInventory] = React.useState({})
   const currentNS = window.location.pathname.split('/')[3]
 
+  const k8s = require('@kubernetes/client-node')
+  const kc = new k8s.KubeConfig()
+  kc.loadFromDefault()
+  //const k8sApi = kc.makeApiClient(k8s.CoreV1Api)
+  const authzK8sApi = kc.makeApiClient(k8s.AuthorizationV1Api)
+
   const dbProviderTitle = (
     <div>
       Connect {dbProviderName} <Label className="ocs-preview-badge extra-left-margin">{t('Alpha')}</Label>
@@ -130,6 +136,35 @@ const InstanceListPage = () => {
     }
   }
 
+  const fetchTenants = () => {
+    var requestOpts = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, */*',
+      },
+      body: JSON.stringify({
+        kind: 'SelfSubjectRulesReview',
+        apiVersion: 'authorization.k8s.io/v1',
+        spec: { namespace: '*' },
+      }),
+    }
+    authzK8sApi
+      .createSelfSubjectRulesReview(requestOpts.body)
+      //fetch('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+      //.then((response) => response.json())
+      .then(
+        (response) => {
+          console.log('Posted rules review')
+          console.log(response)
+        },
+        //.then((data) => parseTenantPayload(data))
+        (err) => {
+          console.log('Error!: ' + err)
+        }
+      )
+  }
+
   const fetchInstances = () => {
     var requestOpts = {
       method: 'GET',
@@ -148,6 +183,7 @@ const InstanceListPage = () => {
 
   React.useEffect(() => {
     parseSelectedDBProvider()
+    fetchTenants()
     fetchInstances()
   }, [currentNS, selectedDBProvider])
 
