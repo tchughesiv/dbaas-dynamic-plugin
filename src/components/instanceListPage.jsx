@@ -1,5 +1,6 @@
 import * as React from 'react'
 import * as _ from 'lodash'
+import * as k8s from '@kubernetes/client-node'
 import {
   FormSection,
   Title,
@@ -130,6 +131,27 @@ const InstanceListPage = () => {
     }
   }
 
+  const fetchTenants = () => {
+    let newBody = {
+      apiVersion: 'authorization.k8s.io/v1',
+      kind: 'SelfSubjectRulesReview',
+      spec: {
+        namespace: '*',
+      },
+    }
+    let requestOpts = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify(newBody),
+    }
+    fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+      .then((response) => response.text())
+      .then((json) => console.log(json))
+  }
+
   const fetchInstances = () => {
     var requestOpts = {
       method: 'GET',
@@ -148,6 +170,7 @@ const InstanceListPage = () => {
 
   React.useEffect(() => {
     parseSelectedDBProvider()
+    fetchTenants()
     fetchInstances()
   }, [currentNS, selectedDBProvider])
 
