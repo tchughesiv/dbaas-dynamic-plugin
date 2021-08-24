@@ -1,4 +1,5 @@
 import * as React from 'react'
+import * as k8s from '@kubernetes/client-node'
 import * as _ from 'lodash'
 import {
   FormSection,
@@ -37,7 +38,7 @@ const InstanceListPage = () => {
   const [selectedInventory, setSelectedInventory] = React.useState({})
   const currentNS = window.location.pathname.split('/')[3]
 
-  const k8s = require('@kubernetes/client-node')
+  //const k8s = require('@kubernetes/client-node')
   const kc = new k8s.KubeConfig()
   kc.loadFromDefault()
   //const k8sApi = kc.makeApiClient(k8s.CoreV1Api)
