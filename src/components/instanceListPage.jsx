@@ -150,20 +150,13 @@ const InstanceListPage = () => {
       },
       body: JSON.stringify(newBody),
     }
-    await Promise.all([
-      fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
-        .then(status)
-        .then(json)
-        .then(parseTenantRulesReview)
-        .then(fetchTenantNamespaces)
-        .then(fetchInventoriesByNamespace)
-        .catch(function (error) {
-          console.error(error)
-        }),
-    ])
-      .then((inventoryByNS) => {
-        inventoryByNS.forEach((inventories) => inventoryItems.push(...inventories))
-      })
+    await fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+      .then(status)
+      .then(json)
+      .then(parseTenantRulesReview)
+      .then(fetchTenantNamespaces)
+      .then(fetchInventoriesByNamespace)
+      .then((inventories) => inventoryItems.push(...inventories))
       .catch(function (error) {
         console.error(error)
       })
@@ -264,13 +257,13 @@ const InstanceListPage = () => {
       body: JSON.stringify(newBody),
     }
 
-    let promise = fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
-      .then(status)
-      .then(json)
-      .then(parseInventoryRulesReview)
-      .then((inventoryNames) => fetchInventories(inventoryNames, namespace))
-
-    await Promise.all([promise])
+    await Promise.all([
+      fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
+        .then(status)
+        .then(json)
+        .then(parseInventoryRulesReview)
+        .then((inventoryNames) => fetchInventories(inventoryNames, namespace)),
+    ])
       .then((inventories) => (inventoryItems = inventories))
       .catch(function (error) {
         console.error(error)
@@ -279,7 +272,7 @@ const InstanceListPage = () => {
     return inventoryItems
   }
 
-  const parseInventoryRulesReview = (responseJson, namespace) => {
+  const parseInventoryRulesReview = (responseJson) => {
     let inventoryNames = []
     let resourceRule = { verbs: [], apiGroups: [], resources: [], resourceNames: [] }
     if (responseJson.status.resourceRules?.length > 0) {
