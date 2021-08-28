@@ -154,7 +154,7 @@ const InstanceListPage = () => {
       .then(status)
       .then(json)
       .then(parseTenantRulesReview)
-      .then(fetchTenantNamespaces)
+      .then(fetchInventoryNamespaces)
       .then(fetchInventoriesByNamespace)
       .then((inventories) => inventoryItems.push(...inventories))
       .catch(function (error) {
@@ -165,11 +165,11 @@ const InstanceListPage = () => {
 
   function parseTenantRulesReview(responseJson) {
     let tenantNames = []
-    let resourceRule = { verbs: [], apiGroups: [], resources: [], resourceNames: [] }
     if (responseJson.status.resourceRules?.length > 0) {
+      let resourceRule = { verbs: [], apiGroups: [], resources: [], resourceNames: [] }
       let availableRules = _.filter(responseJson.status.resourceRules, (rule) => {
         resourceRule = rule
-        if (resourceRule && resourceRule.verbs && resourceRule.resources && resourceRule.resourceNames) {
+        if (resourceRule.verbs && resourceRule.resources && resourceRule.resourceNames) {
           if (resourceRule.resourceNames.length > 0) {
             return resourceRule.resources.includes('dbaastenants') && resourceRule.verbs.includes('get')
           }
@@ -183,10 +183,10 @@ const InstanceListPage = () => {
         })
       })
     }
-    return [...new Set(tenantNames)]
+    return tenantNames
   }
 
-  async function fetchTenantNamespaces(tenantNames = []) {
+  async function fetchInventoryNamespaces(tenantNames = []) {
     let inventoryNamespaces = []
     let promises = []
     var requestOpts = {
@@ -207,12 +207,12 @@ const InstanceListPage = () => {
       )
     })
     await Promise.all(promises)
-      .then((namespaces) => (inventoryNamespaces = [...new Set(namespaces)]))
+      .then((namespaces) => (inventoryNamespaces = namespaces))
       .catch(function (error) {
         console.error(error)
       })
-
-    return inventoryNamespaces
+    let uniqInventoryNamespaces = [...new Set(inventoryNamespaces)]
+    return uniqInventoryNamespaces
   }
 
   async function fetchInventoriesByNamespace(inventoryNamespaces = []) {
@@ -292,7 +292,7 @@ const InstanceListPage = () => {
         })
       })
     }
-    return [...new Set(inventoryNames)]
+    return inventoryNames
   }
 
   async function fetchInventories(inventoryNames, namespace) {
@@ -302,7 +302,7 @@ const InstanceListPage = () => {
       inventoryNames.forEach((inventoryName) => {
         if (inventoryName && namespace) {
           promises.push(
-            asyncInventoryFetch(inventoryName, namespace).then((data) => {
+            inventoryFetch(inventoryName, namespace).then((data) => {
               return data
             })
           )
@@ -319,7 +319,7 @@ const InstanceListPage = () => {
     return inventoryItems
   }
 
-  async function asyncInventoryFetch(inventoryName, namespace) {
+  async function inventoryFetch(inventoryName, namespace) {
     var inventory
     var requestOpts = {
       method: 'GET',
