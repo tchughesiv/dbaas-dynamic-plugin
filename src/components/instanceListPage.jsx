@@ -222,7 +222,7 @@ const InstanceListPage = () => {
     inventoryNamespaces.forEach((namespace) => {
       if (namespace) {
         promises.push(
-          asyncInventoriesFromRulesReview(namespace).then((inventories) => {
+          inventoriesFromRulesReview(namespace).then((inventories) => {
             return inventories
           })
         )
@@ -239,7 +239,7 @@ const InstanceListPage = () => {
     return inventoryItems
   }
 
-  async function asyncInventoriesFromRulesReview(namespace) {
+  async function inventoriesFromRulesReview(namespace) {
     let inventoryItems = []
     let newBody = {
       apiVersion: 'authorization.k8s.io/v1',
