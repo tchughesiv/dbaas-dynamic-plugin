@@ -189,21 +189,11 @@ const InstanceListPage = () => {
   async function fetchInventoryNamespaces(tenantNames = []) {
     let inventoryNamespaces = []
     let promises = []
-    var requestOpts = {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-    }
     tenantNames.forEach((tenantName) => {
       promises.push(
-        fetch('/api/kubernetes/apis/dbaas.redhat.com/v1alpha1/dbaastenants/' + tenantName, requestOpts)
-          .then(status)
-          .then(json)
-          .then((data) => {
-            return data.spec.inventoryNamespace
-          })
+        fetchTenant(tenantName).then((data) => {
+          return data.spec.inventoryNamespace
+        })
       )
     })
     await Promise.all(promises)
@@ -215,17 +205,26 @@ const InstanceListPage = () => {
     return uniqInventoryNamespaces
   }
 
+  async function fetchTenant(tenantName) {
+    var requestOpts = {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+    }
+    return fetch('/api/kubernetes/apis/dbaas.redhat.com/v1alpha1/dbaastenants/' + tenantName, requestOpts)
+      .then(status)
+      .then(json)
+  }
+
   async function fetchInventoriesByNamespace(inventoryNamespaces = []) {
     let promises = []
     let inventoryItems = []
 
     inventoryNamespaces.forEach((namespace) => {
       if (namespace) {
-        promises.push(
-          inventoriesFromRulesReview(namespace).then((inventories) => {
-            return inventories
-          })
-        )
+        promises.push(inventoriesFromRulesReview(namespace))
       }
     })
     await Promise.all(promises)
@@ -262,7 +261,10 @@ const InstanceListPage = () => {
         .then(status)
         .then(json)
         .then(parseInventoryRulesReview)
-        .then((inventoryNames) => fetchInventories(inventoryNames, namespace)),
+        .then((inventoryNames) => fetchInventories(inventoryNames, namespace))
+        .then((inventories) => {
+          return inventories
+        }),
     ])
       .then((inventories) => (inventoryItems = inventories))
       .catch(function (error) {
@@ -301,11 +303,7 @@ const InstanceListPage = () => {
     if (typeof inventoryNames === 'object') {
       inventoryNames.forEach((inventoryName) => {
         if (inventoryName && namespace) {
-          promises.push(
-            inventoryFetch(inventoryName, namespace).then((data) => {
-              return data
-            })
-          )
+          promises.push(inventoryFetch(inventoryName, namespace))
         }
       })
     }
@@ -334,6 +332,9 @@ const InstanceListPage = () => {
     )
       .then(status)
       .then(json)
+      .then((data) => {
+        return data
+      })
   }
 
   function status(response) {
