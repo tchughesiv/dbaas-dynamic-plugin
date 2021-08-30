@@ -13,7 +13,7 @@ import {
   FormSelect,
   FormSelectOption,
   Button,
-  Alert
+  Alert,
 } from '@patternfly/react-core'
 import { InfoCircleIcon } from '@patternfly/react-icons'
 import './_dbaas-import-view.css'
@@ -378,7 +378,12 @@ const InstanceListPage = () => {
                   Database instances retrieval failed
                 </Title>
                 <EmptyStateBody>Database instances could not be retrieved. Please try again.</EmptyStateBody>
-                <Alert variant="danger" isInline title="An error occured" className="co-alert co-break-word extra-top-margin">
+                <Alert
+                  variant="danger"
+                  isInline
+                  title="An error occured"
+                  className="co-alert co-break-word extra-top-margin"
+                >
                   <div>{statusMsg}</div>
                 </Alert>
                 <Button variant="primary" onClick={handleTryAgain}>
