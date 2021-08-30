@@ -94,7 +94,7 @@ const InstanceListPage = () => {
 
   async function fetchInstances() {
     let inventories = []
-    let inventoryItems = await fetchInventoryItems()
+    let inventoryItems = fetchInventoryItems()
 
     if (inventoryItems.length > 0) {
       let filteredInventories = _.filter(inventoryItems, (inventory) => {
