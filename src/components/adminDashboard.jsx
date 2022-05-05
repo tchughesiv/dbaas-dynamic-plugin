@@ -31,14 +31,16 @@ import {
   crunchyProviderType,
   mongoProviderName,
   mongoProviderType,
-} from '../const.ts'
+  API_GROUP,
+} from '../const'
 import {
   disableNSSelection,
   enableNSSelection,
   fetchDbaasCSV,
-  fetchInventoriesByNSAndRules,
   fetchObjectsClusterOrNS,
   isDbaasConnectionUsed,
+  filterInventoriesByConnNS,
+  fetchInventoriesAndMapByNSAndRules,
 } from '../utils'
 import AdminConnectionsTable from './adminConnectionsTable'
 import FlexForm from './form/flexForm'
@@ -58,8 +60,9 @@ const AdminDashboard = () => {
   const [serviceBindingList, setServiceBindingList] = useState([])
   const [inventoryInstances, setInventoryInstances] = useState([])
   const [isOpen, setIsOpen] = useState(false)
-  const [dBaaSOperatorNameWithVersion, setDBaaSOperatorNameWithVersion] = useState()
+  const [dBaaSOperatorNameWithVersion, setDBaaSOperatorNameWithVersion] = useState('')
   const [textInputNameValue, setTextInputNameValue] = useState('')
+  const [installNamespace, setInstallNamespace] = useState('')
 
   const currentNS = window.location.pathname.split('/')[3]
 
@@ -191,21 +194,38 @@ const AdminDashboard = () => {
   }
 
   const fetchServiceBindings = async () => {
-    const serviceBindings = await fetchObjectsClusterOrNS('binding.operators.coreos.com', 'v1alpha1', 'servicebindings')
+    const serviceBindings = await fetchObjectsClusterOrNS(
+      'binding.operators.coreos.com',
+      'v1alpha1',
+      'servicebindings',
+      installNamespace
+    )
     setServiceBindingList(serviceBindings)
   }
 
   const fetchDBaaSConnections = async () => {
-    const connections = await fetchObjectsClusterOrNS('dbaas.redhat.com', 'v1alpha1', 'dbaasconnections')
+    const connections = await fetchObjectsClusterOrNS(
+      'dbaas.redhat.com',
+      'v1alpha1',
+      'dbaasconnections',
+      installNamespace
+    )
     setDbaasConnectionList(connections)
+  }
+
+  async function filteredInventoriesByValidConnectionNS(installNS = '') {
+    const inventoryData = await fetchInventoriesAndMapByNSAndRules(installNS).catch((error) => {
+      setFetchInstancesFailed(true)
+      setStatusMsg(error)
+    })
+
+    return filterInventoriesByConnNS(inventoryData, currentNS)
   }
 
   const fetchInstances = async () => {
     const inventoriesAll = []
-    const inventoryItems = await fetchInventoriesByNSAndRules().catch((error) => {
-      setFetchInstancesFailed(true)
-      setStatusMsg(error)
-    })
+    const inventoryItems = await filteredInventoriesByValidConnectionNS(installNamespace)
+
     if (inventoryItems.length > 0) {
       let filteredInventories = _.filter(inventoryItems, (inventory) => inventory.status?.instances !== undefined)
       filteredInventories.forEach((inventory, index) => {
@@ -253,8 +273,9 @@ const AdminDashboard = () => {
   }
 
   const fetchCSV = async () => {
-    const dbaasCSV = await fetchDbaasCSV(currentNS, DBaaSOperatorName)
-    setDBaaSOperatorNameWithVersion(dbaasCSV.metadata?.name)
+    let dbaasCSV = await fetchDbaasCSV(currentNS, DBaaSOperatorName)
+    setDBaaSOperatorNameWithVersion(dbaasCSV?.metadata?.name)
+    setInstallNamespace(dbaasCSV?.metadata?.annotations['olm.operatorNamespace'])
   }
 
   const goToCreateProviderPage = () => {
@@ -285,16 +306,19 @@ const AdminDashboard = () => {
   }
 
   React.useEffect(() => {
+    fetchCSV()
+  }, [])
+
+  React.useEffect(() => {
     disableNSSelection()
     fetchInstances()
     fetchDBaaSConnections()
     fetchServiceBindings()
-    fetchCSV()
 
     return () => {
       enableNSSelection()
     }
-  }, [])
+  }, [installNamespace, dBaaSOperatorNameWithVersion])
 
   React.useEffect(() => {
     mapDBaaSConnectionsAndServiceBindings()

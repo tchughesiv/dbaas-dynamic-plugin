@@ -14,7 +14,7 @@ import {
   HelperText,
   HelperTextItem,
 } from '@patternfly/react-core'
-import { getCSRFToken, fetchInvAndConnNamespacesFromTenants } from '../utils'
+import { getCSRFToken, fetchInvAndConnNamespacesFromConfigs } from '../utils'
 import { HelpIcon, ExternalLinkAltIcon } from '@patternfly/react-icons'
 import {
   mongoFetchCredentialsUrl,
@@ -30,11 +30,14 @@ import {
   mongoShortName,
   crunchyShortName,
   cockroachShortName,
+  DBaaSInventoryCRName,
+  DBaaSConfigCRName,
 } from '../const'
 
 class ProviderAccountForm extends React.Component {
   constructor(props) {
     super(props)
+    this.installNamespace = props.installNamespace
     this.handleDBProviderSelection = this.handleDBProviderSelection.bind(this)
     this.handleCancel = this.handleCancel.bind(this)
     this.handleSubmit = this.handleSubmit.bind(this)
@@ -59,20 +62,21 @@ class ProviderAccountForm extends React.Component {
       isInventoryNameFieldValid: '',
       inventoryNameFieldInvalidText: '',
       providerShortName: 'provider',
+      configUrl: window.location.pathname.replace(DBaaSInventoryCRName, DBaaSConfigCRName),
     }
   }
 
   async componentDidUpdate(prevProps, prevState) {
     if (!_.isEmpty(this.props.dbProviderInfo) && prevProps.dbProviderInfo !== this.props.dbProviderInfo) {
       let dbProviderList = []
-      let namespaces = await fetchInvAndConnNamespacesFromTenants()
+      let namespaces = await fetchInvAndConnNamespacesFromConfigs(this.installNamespace)
       this.setState({ inventoryNamespaces: namespaces.uniqInventoryNamespaces })
       if (this.state.inventoryNamespaces.includes(this.state.currentNS)) {
         this.props.dbProviderInfo.items.forEach((dbProvider) => {
           dbProviderList.push({ value: dbProvider?.metadata?.name, label: dbProvider?.spec?.provider?.displayName })
         })
       } else {
-        this.state.showResults = false
+        this.setState({ showResults: false })
       }
       this.setState({ dbProviderOptions: this.state.dbProviderOptions.concat(dbProviderList) })
     }
@@ -329,6 +333,7 @@ class ProviderAccountForm extends React.Component {
       credentialDocUrl,
       createProviderAccountDocUrl,
       providerShortName,
+      configUrl,
     } = this.state
 
     return (
@@ -364,9 +369,12 @@ class ProviderAccountForm extends React.Component {
             title="Invalid Namespace for Provider Account Creation"
             className="co-alert co-break-word"
           >
+            <div>
+              To enable imports in this namespace, <a href={configUrl}>create a DBaaSConfig</a>.
+            </div>
             {!_.isEmpty(this.state.inventoryNamespaces) ? (
               <div>
-                Switch to one of these valid Tenant namespaces and retry:
+                Or switch to one of these valid namespaces and retry:
                 <ul>
                   {_.map(this.state.inventoryNamespaces, (namespace, index) => (
                     <li key={index}>{namespace}</li>
@@ -374,7 +382,7 @@ class ProviderAccountForm extends React.Component {
                 </ul>
               </div>
             ) : (
-              <div>no tenant namespaces detected</div>
+              <div>No valid namespaces detected.</div>
             )}
           </Alert>
         )}

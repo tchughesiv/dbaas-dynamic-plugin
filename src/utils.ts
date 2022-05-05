@@ -1,4 +1,5 @@
 import * as _ from 'lodash'
+import { API_GROUP } from './const'
 
 export const cookiePrefix = 'csrf-token='
 
@@ -15,7 +16,7 @@ export const getCSRFToken = () => {
   }
 }
 
-export async function fetchObjectsClusterOrNS(group, version, kindPlural) {
+export async function fetchObjectsClusterOrNS(group, version, kindPlural, installNS = '') {
   let objectArray = []
   let listAllowed = await isListAllowed(group, kindPlural, '')
   if (listAllowed) {
@@ -33,8 +34,8 @@ export async function fetchObjectsClusterOrNS(group, version, kindPlural) {
         objectArray = list.items
       })
   } else {
-    let namespaces = await fetchProjects()
-    await fetchObjectsByNamespace(group, version, kindPlural, namespaces).then((objects) => {
+    let namespaces = await fetchProjects(installNS)
+    await fetchObjectsByNamespaces(group, version, kindPlural, namespaces).then((objects) => {
       objectArray = objects
     })
   }
@@ -87,8 +88,11 @@ export function json(response) {
   return response.json()
 }
 
-async function fetchProjects() {
+async function fetchProjects(installNS = '') {
   let projectNames = []
+  if (!_.isEmpty(installNS)) {
+    projectNames.push(installNS)
+  }
   var requestOpts = {
     method: 'GET',
     headers: {
@@ -101,10 +105,12 @@ async function fetchProjects() {
     .then(json)
     .then((projectList) => projectList.items.forEach((project) => projectNames.push(project.metadata.name)))
 
+  projectNames = [...new Set(projectNames)]
+
   return projectNames
 }
 
-export async function fetchObjectsByNamespace(group, version, kindPlural, namespaces = []) {
+export async function fetchObjectsByNamespaces(group, version, kindPlural, namespaces = []) {
   let promises = []
   let items = []
 
@@ -200,27 +206,16 @@ function parseRulesReview(responseJson, kindPlural) {
   return kindNames
 }
 
-export async function fetchInventoriesAndMapByNSAndRules() {
-  let namespaces = await fetchInvAndConnNamespacesFromTenants()
+export async function fetchInventoriesAndMapByNSAndRules(installNS = '') {
+  let namespaces = await fetchInvAndConnNamespacesFromConfigs(installNS)
   let nsMap = namespaces.nsMap
-  let inventoryList = await fetchObjectsByNamespace(
-    'dbaas.redhat.com',
+  let inventoryList = await fetchObjectsByNamespaces(
+    API_GROUP,
     'v1alpha1',
     'dbaasinventories',
     namespaces.uniqInventoryNamespaces
   )
   return { inventoryList, nsMap }
-}
-
-export async function fetchInventoriesByNSAndRules() {
-  let namespaces = await fetchInvAndConnNamespacesFromTenants()
-  let inventoryList = await fetchObjectsByNamespace(
-    'dbaas.redhat.com',
-    'v1alpha1',
-    'dbaasinventories',
-    namespaces.uniqInventoryNamespaces
-  )
-  return inventoryList
 }
 
 export async function fetchObjects(objectNames, namespace, group, version, kindPlural) {
@@ -273,105 +268,40 @@ export const isDbaasConnectionUsed = (serviceBinding, dbaasConnection) => {
   }
 }
 
-export async function fetchInvAndConnNamespacesFromTenants() {
+export async function fetchInvAndConnNamespacesFromConfigs(installNS = '') {
   let inventoryNamespaces = []
   let nsMap = {}
-  let listAllowed = await isListAllowed('dbaastenants', '', '')
-  var requestOpts
+  let configs = await fetchObjectsClusterOrNS(API_GROUP, 'v1alpha1', 'dbaasconfigs', installNS)
 
-  if (listAllowed) {
-    requestOpts = {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-    }
-    await fetch('/api/kubernetes/apis/dbaas.redhat.com/v1alpha1/dbaastenants?limit=250', requestOpts)
-      .then(status)
-      .then(json)
-      .then((tenantList) =>
-        tenantList.items.forEach((tenant) => {
-          if (nsMap[tenant.spec?.inventoryNamespace]) {
-            nsMap[tenant.spec?.inventoryNamespace].push(...tenant.spec?.connectionNamespaces)
-          } else {
-            nsMap[tenant.spec?.inventoryNamespace] = tenant.spec?.connectionNamespaces
-          }
-          inventoryNamespaces.push(tenant.spec?.inventoryNamespace)
-        })
-      )
-  } else {
-    let newBody = {
-      apiVersion: 'authorization.k8s.io/v1',
-      kind: 'SelfSubjectRulesReview',
-      spec: {
-        namespace: '*',
-      },
-    }
-    requestOpts = {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'X-CSRFToken': getCSRFToken(),
-      },
-      body: JSON.stringify(newBody),
-    }
-    await fetch('/api/kubernetes/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', requestOpts)
-      .then(status)
-      .then(json)
-      .then((responseJson) => parseRulesReview(responseJson, 'dbaastenants'))
-      .then(fetchInventoryNSfromTenants)
-      .then((namespaces) => ((inventoryNamespaces = namespaces.uniqInventoryNamespaces), (nsMap = namespaces.nsMap)))
-  }
-  let uniqInventoryNamespaces = [...new Set(inventoryNamespaces)]
-
-  return { uniqInventoryNamespaces, nsMap }
-}
-
-export async function fetchInventoryNSfromTenants(tenants = []) {
-  let inventoryNamespaces = []
-  let nsMap = {}
-  let promises = []
-  tenants.forEach((tenant) => {
-    promises.push(fetchTenant(tenant))
-  })
-  await Promise.all(promises).then((tenantList) =>
-    tenantList.forEach((tenant) => {
-      if (nsMap[tenant.spec?.inventoryNamespace]) {
-        nsMap[tenant.spec?.inventoryNamespace].push(...tenant.spec?.connectionNamespaces)
+  configs.forEach((config) => {
+    if (
+      config.status?.conditions?.length > 0 &&
+      config.status.conditions[0].status === 'True' &&
+      !config.spec?.disableInUi
+    ) {
+      if (nsMap[config.metadata?.namespace]) {
+        nsMap[config.metadata?.namespace].push(...config.spec?.connectionNamespaces)
       } else {
-        nsMap[tenant.spec?.inventoryNamespace] = tenant.spec?.connectionNamespaces
+        nsMap[config.metadata?.namespace] = config.spec?.connectionNamespaces
       }
-      inventoryNamespaces.push(tenant.spec?.inventoryNamespace)
-    })
-  )
-  let uniqInventoryNamespaces = [...new Set(inventoryNamespaces)]
-  return { uniqInventoryNamespaces, nsMap }
-}
+      inventoryNamespaces.push(config.metadata?.namespace)
+    }
+  })
 
-export async function fetchTenant(tenantName) {
-  var requestOpts = {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    },
-  }
-  return fetch('/api/kubernetes/apis/dbaas.redhat.com/v1alpha1/dbaastenants/' + tenantName, requestOpts)
-    .then(status)
-    .then(json)
+  let uniqInventoryNamespaces = [...new Set(inventoryNamespaces)]
+
+  return { uniqInventoryNamespaces, nsMap }
 }
 
 export function filterInventoriesByConnNS(inventoryData = { inventoryList: [], nsMap: {} }, currentNS = '') {
   let inventoryItems = []
-  let validNamespaces = []
 
   inventoryData.inventoryList.forEach((inventory) => {
     let push = false
     if (inventory.metadata?.namespace == currentNS) {
       push = true
     }
+    let validNamespaces = []
     validNamespaces = inventory.spec?.connectionNamespaces
     if (validNamespaces == null || validNamespaces.length == null) {
       validNamespaces = inventoryData.nsMap[inventory.metadata?.namespace]
@@ -387,7 +317,7 @@ export function filterInventoriesByConnNS(inventoryData = { inventoryList: [], n
 }
 
 export async function fetchDbaasCSV(currentNS, DBaaSOperatorName) {
-  let dbaasCSV = []
+  let dbaasCSV = {}
   let requestOpts = {
     method: 'GET',
     headers: {

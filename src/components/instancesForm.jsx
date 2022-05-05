@@ -16,6 +16,7 @@ import { DBaaSInventoryCRName } from '../const'
 class InstancesForm extends React.Component {
   constructor(props) {
     super(props)
+    this.installNamespace = props.installNamespace
     this.DBaaSOperatorNameWithVersion = props.csv?.metadata?.name || window.DBAAS_OPERATOR_VERSION
     this.fetchInventoryIntervalID = 0
     this.fetchInventoryTimeoutID = 0
