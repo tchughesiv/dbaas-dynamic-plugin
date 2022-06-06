@@ -300,19 +300,22 @@ const AdminDashboard = () => {
     )
   }
 
+  React.useEffect(() => {
+    disableNSSelection()
+
+    return () => {
+      enableNSSelection()
+    }
+  }, [])
+
   React.useEffect(async () => {
     await fetchCSV()
   }, [])
 
   React.useEffect(async () => {
-    disableNSSelection()
     await fetchInstances()
     await fetchDBaaSConnections()
     await fetchServiceBindings()
-
-    return () => {
-      enableNSSelection()
-    }
   }, [installNamespace, dBaaSOperatorNameWithVersion])
 
   React.useEffect(async () => {
