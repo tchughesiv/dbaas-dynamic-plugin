@@ -31,6 +31,7 @@ import {
   cockroachShortName,
   DBaaSInventoryCRName,
   DBaaSConfigCRName,
+  CSVapiVersionKind,
 } from '../const'
 
 class ProviderAccountForm extends React.Component {
@@ -70,6 +71,16 @@ class ProviderAccountForm extends React.Component {
       let dbProviderList = []
       let namespaces = await fetchInvAndConnNamespacesFromConfigs(this.props.installNamespace)
       this.setState({ inventoryNamespaces: namespaces.uniqInventoryNamespaces })
+
+      if (
+        !window.location.pathname.includes(CSVapiVersionKind) &&
+        !_.isNil(this.props.dbaasOperatorNameWithVersion) &&
+        !_.isNil(this.state.currentNS)
+      ) {
+        this.setState({
+          configUrl: `/k8s/ns/${this.state.currentNS}/${CSVapiVersionKind}/${this.props.dbaasOperatorNameWithVersion}/${DBaaSConfigCRName}/~new`,
+        })
+      }
 
       if (this.state.inventoryNamespaces.includes(this.state.currentNS)) {
         this.props.dbProviderInfo.items.forEach((dbProvider) => {

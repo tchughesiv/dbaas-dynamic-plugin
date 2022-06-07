@@ -69,6 +69,8 @@ class DBaasImportPage extends React.Component {
     const { activeTabKey, isDBaaSServiceUp, currentCreatedInventoryInfo, providerInfo, dbaasCSV } = this.state
     let installNamespace = ''
     installNamespace = dbaasCSV?.metadata?.annotations['olm.operatorNamespace']
+    let dbaasOperatorNameWithVersion = ''
+    dbaasOperatorNameWithVersion = dbaasCSV?.metadata?.name
 
     return (
       <div>
@@ -85,6 +87,7 @@ class DBaasImportPage extends React.Component {
             setDBaaSServiceStatus={this.setDBaaSServiceStatus}
             setCurrentCreatedInventoryInfo={this.setCurrentCreatedInventoryInfo}
             installNamespace={installNamespace}
+            dbaasOperatorNameWithVersion={dbaasOperatorNameWithVersion}
           />
         ) : (
           <InstancesForm

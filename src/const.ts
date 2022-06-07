@@ -5,6 +5,8 @@ export const API_VERSION = 'v1'
 
 export const DBaaSInventoryCRName = API_GROUP + '~v1alpha1~DBaaSInventory'
 export const DBaaSConfigCRName = API_GROUP + '~v1alpha1~DBaaSConfig'
+export const CSVapiVersionKind = 'operators.coreos.com~v1alpha1~ClusterServiceVersion'
+
 export const DBaaSOperatorName = 'dbaas-operator'
 
 // Currently placeholders
