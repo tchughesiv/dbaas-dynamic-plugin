@@ -4,7 +4,7 @@ WORKDIR /opt/app-root/src/app
 COPY . /opt/app-root/src/app
 
 USER 0
-RUN npm i -g yarn@1.22.10
+RUN npm i -g yarn && yarn set version 2.4.3
 RUN yarn install
 RUN yarn build
 
