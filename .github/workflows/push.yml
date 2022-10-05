@@ -52,5 +52,6 @@ jobs:
     - run: yarn install
     - run: QUAY_USER=${{ env.QUAY_USER }} yarn img-build
       name: Build image
+
     - run: QUAY_USER=${{ env.QUAY_USER }} yarn img-push
       name: Push image
