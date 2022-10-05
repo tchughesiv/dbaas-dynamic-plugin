@@ -17,6 +17,7 @@ on:
     - release-*
 
 env:
+  PACKAGE_NAME: dbaas-dynamic-plugin-dev
   QUAY_USER: tchughesiv
   #QUAY_USER: ecosystem-appeng
 
@@ -45,13 +46,19 @@ jobs:
         password: ${{ secrets.REGISTRY_PASSWORD }}
         registry: quay.io
     - run: npm install --global yarn@1.22.10
+
     - name: Retrieve version
       run: echo "::set-output name=VERSION::$(yarn version --json | jq '.data' |  tr -d '[:space:]' | tr -d '"' | awk -F ":" {'print $2'})"
       id: version
+
     - run: |
         yarn config set version-git-tag false
         yarn version --new-version ${{ steps.version.outputs.VERSION }}-$(git rev-parse --short HEAD)
       name: Add git sha to project version
+
+    - run: cat <<< $(jq '.name = "${{ env.PACKAGE_NAME }}"' package.json) > package.json
+      name: Change package name
+
     - run: yarn install
     - run: QUAY_USER=${{ env.QUAY_USER }} yarn img-build
       name: Build image
