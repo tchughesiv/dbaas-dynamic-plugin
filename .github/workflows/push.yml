@@ -1,0 +1,60 @@
+# This workflow will do a clean install of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: Push image
+
+on:
+  push:
+    branches:
+    - main
+    - release-*
+    tags:
+      - '*'
+
+  pull_request:
+    branches:
+    - main
+    - release-*
+
+env:
+  QUAY_USER: tchughesiv
+  #QUAY_USER: ecosystem-appeng
+
+jobs:
+  push:
+    #if: github.repository == 'RHEcosystemAppEng/dbaas-operator'
+    runs-on: ubuntu-latest
+    environment: quay push
+
+    strategy:
+      matrix:
+        node-version: [16.x]
+        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v2
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    - name: Log in to image registry
+      uses: redhat-actions/podman-login@v1
+      with:
+        username: ${{ secrets.REGISTRY_USER }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
+        registry: quay.io
+    - run: npm install --global yarn@1.22.10
+    - name: Retrieve version
+      run: echo "::set-output name=VERSION::$(yarn version --json | jq '.data' |  tr -d '[:space:]' | tr -d '"' | awk -F ":" {'print $2'})"
+      id: version
+    - run: |
+        yarn config set version-git-tag false
+        yarn version --new-version ${{ steps.version.outputs.VERSION }}-$(git rev-parse --short HEAD)
+      name: Add git sha to project version
+    - run: yarn install
+    - run: QUAY_USER=${{ env.QUAY_USER }} yarn img-build
+      name: Build image
+
+    - run: QUAY_USER=${{ env.QUAY_USER }} yarn img-push
+      name: Push image
