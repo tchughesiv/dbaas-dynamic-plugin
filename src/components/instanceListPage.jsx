@@ -203,6 +203,7 @@ const InstanceListPage = () => {
     }
 
     // Cannot parse provider name from CRD
+    setDBProviderName(dbProviderType)
     if (dbProviderType === crunchyProviderType) {
       setDBProviderName(crunchyShortName)
     }
